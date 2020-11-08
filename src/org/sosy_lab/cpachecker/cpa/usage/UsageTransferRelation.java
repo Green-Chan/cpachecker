@@ -310,6 +310,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
         // Sometimes these functions are used not only for linkings.
         // For example, getListElement also deletes element.
         // So, if we can't link (no left side), we skip it
+
         return bInfo.constructIdentifiers(left, params, creator);
       }
     }
