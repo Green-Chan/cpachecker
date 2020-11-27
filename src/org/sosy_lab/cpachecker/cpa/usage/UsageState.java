@@ -25,6 +25,8 @@ import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractStateWithEdge;
 import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.identifiers.AbstractIdentifier;
+import org.sosy_lab.cpachecker.util.statistics.StatInt;
+import org.sosy_lab.cpachecker.util.statistics.StatKind;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatisticsWriter;
 
@@ -46,6 +48,7 @@ public class UsageState extends AbstractSingleWrapperState
     super(pWrappedElement);
     variableBindingRelation = pVarBind;
     stats = pStats;
+    pStats.statCounter.setNextValue(variableBindingRelation.size());
   }
 
   public static UsageState createInitialState(final AbstractState pWrappedElement) {
@@ -189,11 +192,13 @@ public class UsageState extends AbstractSingleWrapperState
   public static class StateStatistics {
     private StatTimer joinTimer = new StatTimer("Time for joining");
     private StatTimer lessTimer = new StatTimer("Time for cover check");
+    private StatInt statCounter =
+        new StatInt(StatKind.SUM, "Sum of variableBindingRelation's sizes");
 
     public StateStatistics() {}
 
     public void printStatistics(StatisticsWriter out) {
-      out.spacer().put(joinTimer).put(lessTimer);
+      out.spacer().put(joinTimer).put(lessTimer).put(statCounter);
     }
   }
 
@@ -224,13 +229,59 @@ public class UsageState extends AbstractSingleWrapperState
   public UsageState join(UsageState pOther) {
     stats.joinTimer.start();
 
+
+    /*
+    ImmutableMap<AbstractIdentifier, AbstractIdentifier> tmp = variableBindingRelation;
+
+    for (Entry<AbstractIdentifier, AbstractIdentifier> entry :
+        pOther.variableBindingRelation.entrySet()) {
+
+      ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+
+      boolean new_entry = true;
+
+      for (Entry<AbstractIdentifier, AbstractIdentifier> entry1 : tmp.entrySet()) {
+        AbstractIdentifier key = entry1.getKey();
+        if (key.equals(entry.getKey())) {
+          // Can not remove from builder, so have to go through a map manually
+          builder.put(entry);
+          new_entry = false;
+        } else {
+          builder.put(entry1);
+        }
+      }
+
+      if (new_entry) {
+        builder.put(entry);
+      }
+
+      tmp = builder.build();
+    }*/
+    /*
     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> newRelation =
         ImmutableMap.builder();
     newRelation.putAll(variableBindingRelation);
 
     for (Entry<AbstractIdentifier, AbstractIdentifier> entry :
         pOther.variableBindingRelation.entrySet()) {
+
       newRelation.put(entry.getKey(), entry.getValue());
+    }*/
+
+    ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> newRelation =
+        ImmutableMap.builder();
+    newRelation.putAll(variableBindingRelation);
+
+    for (Entry<AbstractIdentifier, AbstractIdentifier> entry : pOther.variableBindingRelation
+        .entrySet()) {
+
+      if (variableBindingRelation.containsKey(entry.getKey())) {
+        if (!variableBindingRelation.get(entry.getKey()).equals(entry.getValue())) {
+          throw new Error("Cannot handle it yet");
+        }
+      } else {
+        newRelation.put(entry.getKey(), entry.getValue());
+      }
     }
     stats.joinTimer.stop();
     return new UsageState(this.getWrappedState(), newRelation.build(), stats);

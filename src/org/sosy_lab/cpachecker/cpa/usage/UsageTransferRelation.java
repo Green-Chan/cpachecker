@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Level;
@@ -35,6 +34,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCall;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallAssignmentStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallStatement;
+import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdgeType;
@@ -201,9 +201,12 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
       return ImmutableSet.of();
     }
 
+
     statistics.bindingTimer.start();
     creator.setCurrentFunction(getCurrentFunction(oldState));
-    Optional<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
+    // Function in creator could be changed after handleFunctionCallExpression call
+
+    Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
         handleEdge(currentEdge);
     statistics.bindingTimer.stop();
 
@@ -216,8 +219,8 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     // Do not know why, but replacing the loop into lambda greatly decreases the speed
     for (AbstractState newWrappedState : newWrappedStates) {
       UsageState newState = oldState.copy(newWrappedState);
-      if (newLinks.isPresent()) {
-        Pair<AbstractIdentifier, AbstractIdentifier> pair = newLinks.get();
+
+      for (Pair<AbstractIdentifier, AbstractIdentifier> pair : newLinks) {
         logger.log(Level.FINEST, "Link " + pair.getFirst() + " and " + pair.getSecond());
         newState = newState.put(pair.getFirst(), pair.getSecond());
       }
@@ -247,7 +250,8 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     return pCfaEdge;
   }
 
-  private Optional<Pair<AbstractIdentifier, AbstractIdentifier>>
+
+  private Collection<Pair<AbstractIdentifier, AbstractIdentifier>>
       handleEdge(CFAEdge pCfaEdge) throws CPATransferException {
 
     switch (pCfaEdge.getEdgeType()) {
@@ -270,7 +274,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
       case BlankEdge:
       case CallToReturnEdge:
         {
-        return Optional.empty();
+          return ImmutableSet.of();
         }
 
       default:
@@ -278,7 +282,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     }
   }
 
-  private Optional<Pair<AbstractIdentifier, AbstractIdentifier>>
+  private Collection<Pair<AbstractIdentifier, AbstractIdentifier>>
       handleStatement(final CStatement pStatement) {
 
     if (pStatement instanceof CFunctionCallAssignmentStatement) {
@@ -294,10 +298,11 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
           null, ((CFunctionCallStatement) pStatement).getFunctionCallExpression());
 
     }
-    return Optional.empty();
+    return ImmutableSet.of();
   }
 
-  private Optional<Pair<AbstractIdentifier, AbstractIdentifier>> handleFunctionCallExpression(
+
+  private Collection<Pair<AbstractIdentifier, AbstractIdentifier>> handleFunctionCallExpression(
       final CExpression left,
       final CFunctionCallExpression fcExpression) {
 
@@ -314,7 +319,32 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
         return bInfo.constructIdentifiers(left, params, creator);
       }
     }
-    return Optional.empty();
+
+    // My code
+    if (fcExpression.getDeclaration() == null) {
+      logger.log(Level.FINE, "No declaration.");
+    } else {
+      ImmutableSet.Builder<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
+          ImmutableSet.builder();
+      for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
+        if (i >= fcExpression.getParameterExpressions().size()) {
+          logger.log(Level.FINE, "More parameters in declaration than in expression.");
+          break;
+        }
+
+        CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
+        CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
+        AbstractIdentifier idIn, idFrom;
+        idFrom = creator.createIdentifier(exprFrom, 0);
+        creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
+        idIn = creator.createIdentifier(exprIn, 0);
+        newLinks.add(Pair.of(idIn, idFrom));
+      }
+      return newLinks.build();
+    }
+    // End of my code
+
+    return ImmutableSet.of();
   }
 
   private String getCurrentFunction(UsageState newState) {
