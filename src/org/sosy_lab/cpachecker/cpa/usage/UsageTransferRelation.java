@@ -82,6 +82,13 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
   @Option(name = "abortfunctions", description = "functions, which stops analysis", secure = true)
   private Set<String> abortFunctions = ImmutableSet.of();
 
+  // My option
+  @Option(
+    name = "bindArgsFunctions",
+    description = "functions, arguments of which should be binded with passed variables",
+    secure = true)
+  private boolean bindArgsFunctions = false;
+
   private final CallstackTransferRelation callstackTransfer;
 
   private final Map<String, BinderFunctionInfo> binderFunctionInfo;
@@ -321,26 +328,28 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     }
 
     // My code
-    if (fcExpression.getDeclaration() == null) {
-      logger.log(Level.FINE, "No declaration.");
-    } else {
-      ImmutableSet.Builder<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
-          ImmutableSet.builder();
-      for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
-        if (i >= fcExpression.getParameterExpressions().size()) {
-          logger.log(Level.FINE, "More parameters in declaration than in expression.");
-          break;
-        }
+    if (bindArgsFunctions) {
+      if (fcExpression.getDeclaration() == null) {
+        logger.log(Level.FINE, "No declaration.");
+      } else {
+        ImmutableSet.Builder<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
+            ImmutableSet.builder();
+        for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
+          if (i >= fcExpression.getParameterExpressions().size()) {
+            logger.log(Level.FINE, "More parameters in declaration than in expression.");
+            break;
+          }
 
-        CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
-        CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
-        AbstractIdentifier idIn, idFrom;
-        idFrom = creator.createIdentifier(exprFrom, 0);
-        creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
-        idIn = creator.createIdentifier(exprIn, 0);
-        newLinks.add(Pair.of(idIn, idFrom));
+          CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
+          CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
+          AbstractIdentifier idIn, idFrom;
+          idFrom = creator.createIdentifier(exprFrom, 0);
+          creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
+          idIn = creator.createIdentifier(exprIn, 0);
+          newLinks.add(Pair.of(idIn, idFrom));
+        }
+        return newLinks.build();
       }
-      return newLinks.build();
     }
     // End of my code
 

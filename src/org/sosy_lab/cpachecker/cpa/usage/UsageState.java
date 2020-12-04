@@ -66,12 +66,12 @@ public class UsageState extends AbstractSingleWrapperState
   }
 
   public UsageState put(final AbstractIdentifier id1, final AbstractIdentifier id2) {
-    if (!id1.equals(id2)) {
+    AbstractIdentifier newId2 = getLinksIfNecessary(id2);
+    if (!id1.equals(newId2)) {
       UsageState result = new UsageState(this.getWrappedState(), this);
       // Optimization to store
       AbstractIdentifier newId1 = id1.cloneWithDereference(0);
-      AbstractIdentifier newId2 =
-          id2.cloneWithDereference(id2.getDereference() - id1.getDereference());
+      newId2 = newId2.cloneWithDereference(newId2.getDereference() - id1.getDereference());
       ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
 
       boolean new_entry = true;
