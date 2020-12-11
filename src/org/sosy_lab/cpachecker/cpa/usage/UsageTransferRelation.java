@@ -82,13 +82,6 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
   @Option(name = "abortfunctions", description = "functions, which stops analysis", secure = true)
   private Set<String> abortFunctions = ImmutableSet.of();
 
-  // My option
-  @Option(
-    name = "bindArgsFunctions",
-    description = "functions, arguments of which should be binded with passed variables",
-    secure = true)
-  private boolean bindArgsFunctions = false;
-
   private final CallstackTransferRelation callstackTransfer;
 
   private final Map<String, BinderFunctionInfo> binderFunctionInfo;
@@ -96,12 +89,15 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
 
   private final LogManager logger;
 
+  private final boolean bindArgsFunctions;
+
   public UsageTransferRelation(
       TransferRelation pWrappedTransfer,
       Configuration config,
       LogManager pLogger,
       UsageCPAStatistics s,
-      IdentifierCreator c)
+      IdentifierCreator c,
+      boolean bindArgs)
       throws InvalidConfigurationException {
     super(pWrappedTransfer);
     config.inject(this, UsageTransferRelation.class);
@@ -126,6 +122,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     // BindedFunctions should not be analysed
     skippedfunctions = new TreeSet<>(Sets.union(skippedfunctions, binderFunctions));
     creator = c;
+    bindArgsFunctions = bindArgs;
   }
 
   @Override

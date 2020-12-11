@@ -84,6 +84,13 @@ public class UsageCPA extends AbstractSingleWrapperCPA
   @FileOption(Type.OUTPUT_FILE)
   private Path outputFileName = Paths.get("localsave");
 
+  // My option
+  @Option(
+    name = "cpa.usage.bindArgsFunctions",
+    description = "functions, arguments of which should be binded with passed variables",
+    secure = true)
+  private boolean bindArgsFunctions = false;
+
   private UsageCPA(
       ConfigurableProgramAnalysis pCpa,
       CFA pCfa,
@@ -103,7 +110,8 @@ public class UsageCPA extends AbstractSingleWrapperCPA
             pCfa,
             lockCPA != null ? (LockTransferRelation) lockCPA.getTransferRelation() : null);
     this.stopOperator = new UsageStopOperator(pCpa.getStopOperator(), statistics);
-    this.mergeOperator = new UsageMergeOperator(pCpa.getMergeOperator(), statistics);
+    this.mergeOperator =
+        new UsageMergeOperator(pCpa.getMergeOperator(), statistics, bindArgsFunctions);
 
     this.precisionAdjustment =
         new UsagePrecisionAdjustment(pCpa.getPrecisionAdjustment(), statistics);
@@ -120,7 +128,8 @@ public class UsageCPA extends AbstractSingleWrapperCPA
             pConfig,
             pLogger,
             statistics,
-            creator);
+            creator,
+            bindArgsFunctions);
 
     PresisionParser parser = new PresisionParser(cfa, logger);
     localMap = parser.parse(outputFileName);
