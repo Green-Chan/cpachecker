@@ -24,7 +24,9 @@ import org.sosy_lab.cpachecker.core.interfaces.AbstractEdge;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractStateWithEdge;
 import org.sosy_lab.cpachecker.util.AbstractStates;
+import org.sosy_lab.cpachecker.util.Pair;
 import org.sosy_lab.cpachecker.util.identifiers.AbstractIdentifier;
+import org.sosy_lab.cpachecker.util.identifiers.LocalVariableIdentifier;
 import org.sosy_lab.cpachecker.util.statistics.StatInt;
 import org.sosy_lab.cpachecker.util.statistics.StatKind;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
@@ -65,6 +67,57 @@ public class UsageState extends AbstractSingleWrapperState
         state.stats);
   }
 
+  // My code
+  public UsageState put(Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks) {
+    boolean sameMap = true;
+    ImmutableMap<AbstractIdentifier, AbstractIdentifier> newMap = variableBindingRelation;
+
+    for (Pair<AbstractIdentifier, AbstractIdentifier> pair : newLinks) {
+      AbstractIdentifier id1 = pair.getFirst();
+      AbstractIdentifier id2 = getLinksIfNecessary(pair.getSecond());
+      if (!id1.equals(id2)) {
+        AbstractIdentifier newId1 = id1.cloneWithDereference(0);
+        AbstractIdentifier newId2 =
+            id2.cloneWithDereference(id2.getDereference() - id1.getDereference());
+        ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder =
+            ImmutableMap.builder();
+        boolean new_entry = true;
+
+        if (newId1.toString().equals("free::")) {
+          System.out.print(0);
+        }
+
+        for (Entry<AbstractIdentifier, AbstractIdentifier> entry : newMap.entrySet()) {
+          AbstractIdentifier key = entry.getKey();
+          if (key.equals(newId1)) {
+            // Can not remove from builder, so have to go through a map manually
+            builder.put(newId1, newId2);
+            new_entry = false;
+            if (!newId2.equals(entry.getValue())) {
+              sameMap = false;
+            }
+          } else {
+            builder.put(entry);
+          }
+        }
+        // If this is an entry with new first AbstractIdentifier, add it.
+        if (new_entry) {
+          builder.put(newId1, newId2);
+          sameMap = false;
+        }
+        newMap = builder.build();
+      }
+    }
+
+    if (sameMap) {
+      return this;
+    } else {
+      return new UsageState(this.getWrappedState(), newMap, stats);
+    }
+  }
+
+  // End of my code
+
   public UsageState put(final AbstractIdentifier id1, final AbstractIdentifier id2) {
     AbstractIdentifier newId2 = getLinksIfNecessary(id2);
     if (!id1.equals(newId2)) {
@@ -87,6 +140,14 @@ public class UsageState extends AbstractSingleWrapperState
           builder.put(newId1, newId2);
           new_entry = false;
         } else {
+
+          // AbstractIdentifier value = entry.getValue();
+          // if (value.equals(newId1)) {
+          // builder.put(key, newId2);
+          // } else {
+          // builder.put(entry);
+          // }
+
           builder.put(entry);
         }
       }
@@ -125,6 +186,62 @@ public class UsageState extends AbstractSingleWrapperState
   public UsageState copy(final AbstractState pWrappedState) {
     return new UsageState(pWrappedState, this);
   }
+
+  // My code
+  public UsageState reduced(final AbstractState pWrappedState, final String func) {
+    System.out.print("r ");
+    System.out.println(func);
+   UsageState result = new UsageState(pWrappedState, this);
+
+   ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+   for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
+     AbstractIdentifier key = entry.getKey();
+     if (key.isGlobal()) {
+       builder.put(entry);
+     } else if (key instanceof LocalVariableIdentifier
+         && ((LocalVariableIdentifier) key).getFunction().equals(func)) {
+       builder.put(entry);
+     }
+   // Case (1)->(2), (2)->(3) ??
+   }
+   result.variableBindingRelation = builder.build();
+   if (!variableBindingRelation
+       .equals(this.expanded(pWrappedState, result, func).variableBindingRelation)) {
+
+     assert (false);
+   }
+   return result;
+   }
+
+   public UsageState expanded(final AbstractState pWrappedState, final UsageState state, final String func) {
+     //UsageState result = new UsageState(pWrappedState, state.variableBindingRelation, state.stats);
+
+     System.out.print("e ");
+     System.out.println(func);
+
+     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+     builder.putAll(state.variableBindingRelation);
+     for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
+       AbstractIdentifier key = entry.getKey();
+       if (key instanceof LocalVariableIdentifier
+           && !((LocalVariableIdentifier) key).getFunction().equals(func)) {
+         builder.put(entry);
+       }
+     }
+     UsageState result = new UsageState(pWrappedState, builder.build(), state.stats);
+
+
+//     ImmutableSet.Builder<Pair<AbstractIdentifier, AbstractIdentifier>> links =
+//         ImmutableSet.builder();
+//     for (Entry<AbstractIdentifier, AbstractIdentifier> entry : state.variableBindingRelation
+//         .entrySet()) {
+//       links.add(Pair.of(entry.getKey(), entry.getValue()));
+//     }
+//     result = result.put(links.build());
+
+     return result;
+   }
+  // End of my code
 
   @Override
   public int hashCode() {

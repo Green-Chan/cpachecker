@@ -41,7 +41,9 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdgeType;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionCallEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CFunctionCallEdge;
+import org.sosy_lab.cpachecker.cfa.model.c.CFunctionReturnEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CStatementEdge;
+import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
 import org.sosy_lab.cpachecker.core.defaults.AbstractSingleWrapperTransferRelation;
 import org.sosy_lab.cpachecker.core.defaults.WrapperCFAEdge;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractEdge;
@@ -224,10 +226,12 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     for (AbstractState newWrappedState : newWrappedStates) {
       UsageState newState = oldState.copy(newWrappedState);
 
-      for (Pair<AbstractIdentifier, AbstractIdentifier> pair : newLinks) {
-        logger.log(Level.FINEST, "Link " + pair.getFirst() + " and " + pair.getSecond());
-        newState = newState.put(pair.getFirst(), pair.getSecond());
-      }
+      // for (Pair<AbstractIdentifier, AbstractIdentifier> pair : newLinks) {
+      // logger.log(Level.FINEST, "Link " + pair.getFirst() + " and " + pair.getSecond());
+      // newState = newState.put(pair.getFirst(), pair.getSecond());
+      // }
+      newState = newState.put(newLinks);
+
       result.add(newState);
     }
 
@@ -268,12 +272,62 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
       case FunctionCallEdge:
         {
         CFunctionCall statement = ((CFunctionCallEdge) pCfaEdge).getRawAST().get();
+
+        // My code
+        if (bindArgsFunctions) {
+
+          CFunctionCallExpression fcExpression;
+
+          if (statement instanceof CFunctionCallAssignmentStatement) {
+            // assignment like "a = b" or "a = foo()"
+            CAssignment assignment = (CAssignment) statement;
+            fcExpression = ((CFunctionCallAssignmentStatement) statement).getRightHandSide();
+
+          } else if (statement instanceof CFunctionCallStatement) {
+            fcExpression = ((CFunctionCallStatement) statement).getFunctionCallExpression();
+          } else {
+            return ImmutableSet.of();
+          }
+
+          if (fcExpression.getDeclaration() == null) {
+            logger.log(Level.FINE, "No declaration.");
+          } else {
+            ImmutableSet.Builder<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
+                ImmutableSet.builder();
+            for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
+              if (i >= fcExpression.getParameterExpressions().size()) {
+                logger.log(Level.FINE, "More parameters in declaration than in expression.");
+                break;
+              }
+
+              CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
+              CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
+              if (exprFrom.getExpressionType() instanceof CPointerType) {
+                AbstractIdentifier idIn, idFrom;
+                idFrom = creator.createIdentifier(exprFrom, 0);
+                creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
+                idIn = creator.createIdentifier(exprIn, 0);
+                newLinks.add(Pair.of(idIn, idFrom));
+              }
+            }
+            return newLinks.build();
+          }
+        }
+        // End of my code
+
         return handleStatement(statement);
+        }
+
+        case FunctionReturnEdge: {
+          // My code
+          CFunctionReturnEdge returnEdge = (CFunctionReturnEdge) pCfaEdge;
+          returnEdge.getSummaryEdge().getExpression();
+          return ImmutableSet.of();
+          // End of my code
         }
 
       case AssumeEdge:
       case DeclarationEdge:
-      case FunctionReturnEdge:
       case ReturnStatementEdge:
       case BlankEdge:
       case CallToReturnEdge:
@@ -311,6 +365,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
       final CFunctionCallExpression fcExpression) {
 
     String functionCallName = fcExpression.getFunctionNameExpression().toASTString();
+
     if (binderFunctionInfo.containsKey(functionCallName)) {
       BinderFunctionInfo bInfo = binderFunctionInfo.get(functionCallName);
 
@@ -324,31 +379,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
       }
     }
 
-    // My code
-    if (bindArgsFunctions) {
-      if (fcExpression.getDeclaration() == null) {
-        logger.log(Level.FINE, "No declaration.");
-      } else {
-        ImmutableSet.Builder<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks =
-            ImmutableSet.builder();
-        for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
-          if (i >= fcExpression.getParameterExpressions().size()) {
-            logger.log(Level.FINE, "More parameters in declaration than in expression.");
-            break;
-          }
 
-          CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
-          CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
-          AbstractIdentifier idIn, idFrom;
-          idFrom = creator.createIdentifier(exprFrom, 0);
-          creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
-          idIn = creator.createIdentifier(exprIn, 0);
-          newLinks.add(Pair.of(idIn, idFrom));
-        }
-        return newLinks.build();
-      }
-    }
-    // End of my code
 
     return ImmutableSet.of();
   }
