@@ -68,6 +68,24 @@ public class UsageState extends AbstractSingleWrapperState
   }
 
   // My code
+  public UsageState removeInternalLinks(final String functionName) {
+    boolean noRemove = true;
+    ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+    for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
+      AbstractIdentifier key = entry.getKey();
+      if (key instanceof LocalVariableIdentifier
+          && ((LocalVariableIdentifier) key).getFunction().equals(functionName)) {
+        noRemove = false;
+      } else {
+        builder.put(entry);
+      }
+    }
+    if (noRemove) {
+      return this;
+    }
+    return new UsageState(this.getWrappedState(), builder.build(), stats);
+  }
+
   public UsageState put(Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks) {
     boolean sameMap = true;
     ImmutableMap<AbstractIdentifier, AbstractIdentifier> newMap = variableBindingRelation;
@@ -82,10 +100,6 @@ public class UsageState extends AbstractSingleWrapperState
         ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder =
             ImmutableMap.builder();
         boolean new_entry = true;
-
-        if (newId1.toString().equals("free::")) {
-          System.out.print(0);
-        }
 
         for (Entry<AbstractIdentifier, AbstractIdentifier> entry : newMap.entrySet()) {
           AbstractIdentifier key = entry.getKey();
@@ -189,8 +203,6 @@ public class UsageState extends AbstractSingleWrapperState
 
   // My code
   public UsageState reduced(final AbstractState pWrappedState, final String func) {
-    System.out.print("r ");
-    System.out.println(func);
    UsageState result = new UsageState(pWrappedState, this);
 
    ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
@@ -215,9 +227,6 @@ public class UsageState extends AbstractSingleWrapperState
 
    public UsageState expanded(final AbstractState pWrappedState, final UsageState state, final String func) {
      //UsageState result = new UsageState(pWrappedState, state.variableBindingRelation, state.stats);
-
-     System.out.print("e ");
-     System.out.println(func);
 
      ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
      builder.putAll(state.variableBindingRelation);

@@ -222,17 +222,36 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
             .getAbstractSuccessorsForEdge(oldState.getWrappedState(), pPrecision, currentEdge);
     statistics.innerAnalysisTimer.stop();
 
-    // Do not know why, but replacing the loop into lambda greatly decreases the speed
-    for (AbstractState newWrappedState : newWrappedStates) {
-      UsageState newState = oldState.copy(newWrappedState);
+    // My code
+    if (currentEdge.getEdgeType() == CFAEdgeType.FunctionReturnEdge) {
+      CFunctionReturnEdge returnEdge = (CFunctionReturnEdge) currentEdge;
+      String functionName =
+          returnEdge.getSummaryEdge()
+              .getExpression()
+              .getFunctionCallExpression()
+              .getDeclaration()
+              .getName();
+      for (AbstractState newWrappedState : newWrappedStates) {
+        UsageState newState = oldState.copy(newWrappedState);
+        result.add(newState.removeInternalLinks(functionName));
+      }
+    } else {
+      // End of my code
+
+      // Do not know why, but replacing the loop into lambda greatly decreases the speed
+      for (AbstractState newWrappedState : newWrappedStates) {
+        UsageState newState = oldState.copy(newWrappedState);
 
       // for (Pair<AbstractIdentifier, AbstractIdentifier> pair : newLinks) {
       // logger.log(Level.FINEST, "Link " + pair.getFirst() + " and " + pair.getSecond());
       // newState = newState.put(pair.getFirst(), pair.getSecond());
       // }
-      newState = newState.put(newLinks);
+      if (!newLinks.isEmpty()) {
+        newState = newState.put(newLinks);
+      }
 
-      result.add(newState);
+        result.add(newState);
+      }
     }
 
     if (currentEdge != pCfaEdge) {
