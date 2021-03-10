@@ -31,7 +31,6 @@ public class UsageReducer implements Reducer {
     AbstractState red =
         wrappedReducer.getVariableReducedState(funElement.getWrappedState(), pContext, pLocation);
     return funElement.reduced(red, pLocation.getFunction().getName());
-    // return funElement.copy(red);
   }
 
   @Override
@@ -46,7 +45,6 @@ public class UsageReducer implements Reducer {
 
     return funRootState
         .expanded(exp, funReducedState, pReducedContext.getCallNode().getFunction().getName());
-    // return funRootState.copy(exp);
   }
 
   @Override

@@ -84,7 +84,6 @@ public class UsageCPA extends AbstractSingleWrapperCPA
   @FileOption(Type.OUTPUT_FILE)
   private Path outputFileName = Paths.get("localsave");
 
-  // My option
   @Option(
     name = "cpa.usage.bindArgsFunctions",
     description = "functions, arguments of which should be binded with passed variables",
