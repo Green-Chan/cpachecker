@@ -43,6 +43,8 @@ public class UsageState extends AbstractSingleWrapperState
   private transient ImmutableMap<AbstractIdentifier, AbstractIdentifier>
       variableBindingRelation;
 
+      // Don't use constructors in order for UsageStateConservative to work properly.
+      // Use 'createState' method instead.
   private UsageState(
       final AbstractState pWrappedElement,
       final ImmutableMap<AbstractIdentifier, AbstractIdentifier> pVarBind,
@@ -60,6 +62,8 @@ public class UsageState extends AbstractSingleWrapperState
         new StateStatistics());
   }
 
+  // Don't use constructors in order for UsageStateConservative to work properly.
+  // Use 'copy' method instead.
   private UsageState(final AbstractState pWrappedElement, final UsageState state) {
     this(
         pWrappedElement,
@@ -82,7 +86,7 @@ public class UsageState extends AbstractSingleWrapperState
     if (noRemove) {
       return this;
     }
-    return new UsageState(this.getWrappedState(), builder.build(), stats);
+    return createState(this.getWrappedState(), builder.build(), stats);
   }
 
   public UsageState put(Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks) {
@@ -128,7 +132,7 @@ public class UsageState extends AbstractSingleWrapperState
     if (sameMap) {
       return this;
     } else {
-      return new UsageState(this.getWrappedState(), newMap, stats);
+      return createState(this.getWrappedState(), newMap, stats);
     }
   }
 
@@ -155,8 +159,15 @@ public class UsageState extends AbstractSingleWrapperState
     return new UsageState(pWrappedState, this);
   }
 
+  private UsageState createState(
+      final AbstractState pWrappedState,
+      final ImmutableMap<AbstractIdentifier, AbstractIdentifier> pVarBind,
+      final StateStatistics pStats) {
+    return new UsageState(pWrappedState, pVarBind, pStats);
+  }
+
   public UsageState reduced(final AbstractState pWrappedState, final String func) {
-    UsageState result = new UsageState(pWrappedState, this);
+    UsageState result = copy(pWrappedState);
 
     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
     for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
@@ -183,7 +194,7 @@ public class UsageState extends AbstractSingleWrapperState
          builder.put(entry);
        }
      }
-     UsageState result = new UsageState(pWrappedState, builder.build(), state.stats);
+     UsageState result = createState(pWrappedState, builder.build(), state.stats);
 
      return result;
    }
@@ -307,11 +318,11 @@ public class UsageState extends AbstractSingleWrapperState
       }
     }
     stats.joinTimer.stop();
-    return new UsageState(this.getWrappedState(), newRelation.build(), stats);
+    return createState(this.getWrappedState(), newRelation.build(), stats);
   }
 
   protected Object readResolve() {
-    return new UsageState(
+    return createState(
         getWrappedState(),
         ImmutableMap.of(),
         new StateStatistics());
