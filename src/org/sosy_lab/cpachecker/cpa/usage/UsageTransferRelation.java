@@ -254,8 +254,6 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
     Collection<AbstractState> result = new ArrayList<>();
     Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks = new ArrayList<>();
 
-
-
     switch (pCfaEdge.getEdgeType()) {
       case StatementEdge:
         {
@@ -280,7 +278,7 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
             } else if (statement instanceof CFunctionCallStatement) {
               fcExpression = ((CFunctionCallStatement) statement).getFunctionCallExpression();
             } else {
-              return ImmutableSet.of();
+              break;
             }
 
             if (fcExpression.getDeclaration() == null) {
