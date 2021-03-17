@@ -52,7 +52,7 @@ import org.sosy_lab.cpachecker.util.identifiers.IdentifierCreator;
 import org.sosy_lab.cpachecker.util.identifiers.RegionBasedIdentifierCreator;
 import org.sosy_lab.cpachecker.util.variableclassification.VariableClassification;
 
-@Options
+@Options(prefix = "cpa.usage")
 public class UsageCPA extends AbstractSingleWrapperCPA
     implements ConfigurableProgramAnalysisWithBAM, ConfigurableProgramAnalysisTM,
     StatisticsProvider {
@@ -76,7 +76,6 @@ public class UsageCPA extends AbstractSingleWrapperCPA
 
   @Option(
     description = "use sound regions as identifiers",
-    name = "cpa.usage.useSoundRegions",
     secure = true)
   private boolean useSoundRegions = false;
 
@@ -85,10 +84,14 @@ public class UsageCPA extends AbstractSingleWrapperCPA
   private Path outputFileName = Paths.get("localsave");
 
   @Option(
-    name = "cpa.usage.bindArgsFunctions",
-    description = "functions, arguments of which should be binded with passed variables",
+    description = "bind arguments of functions with passed variables",
     secure = true)
   private boolean bindArgsFunctions = false;
+
+  @Option(
+    description = "do not use initial variable in analysis if found an alias for it",
+    secure = true)
+  private boolean filterAliases = false;
 
   private UsageCPA(
       ConfigurableProgramAnalysis pCpa,
@@ -197,7 +200,12 @@ public class UsageCPA extends AbstractSingleWrapperCPA
   @Override
   public AbstractState getInitialState(CFANode pNode, StateSpacePartition pPartition)
       throws InterruptedException {
-    return UsageState.createInitialState(getWrappedCpa().getInitialState(pNode, pPartition));
+    if (filterAliases) {
+      return UsageState.createInitialState(getWrappedCpa().getInitialState(pNode, pPartition));
+    } else {
+      return UsageStateConservative
+          .createInitialState(getWrappedCpa().getInitialState(pNode, pPartition));
+    }
   }
 
   @Override

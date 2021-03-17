@@ -38,14 +38,13 @@ public class UsageState extends AbstractSingleWrapperState
   /* Boilerplate code to avoid serializing this class */
 
   private static final long serialVersionUID = -898577877284268426L;
-  private final transient StateStatistics stats;
+  protected final transient StateStatistics stats;
 
-  private transient ImmutableMap<AbstractIdentifier, AbstractIdentifier>
-      variableBindingRelation;
+  protected transient ImmutableMap<AbstractIdentifier, AbstractIdentifier> variableBindingRelation;
 
-      // Don't use constructors in order for UsageStateConservative to work properly.
-      // Use 'createState' method instead.
-  private UsageState(
+  // Don't use constructors in order for UsageStateConservative to work properly.
+  // Use 'createState' method instead.
+  protected UsageState(
       final AbstractState pWrappedElement,
       final ImmutableMap<AbstractIdentifier, AbstractIdentifier> pVarBind,
       final StateStatistics pStats) {
@@ -159,7 +158,7 @@ public class UsageState extends AbstractSingleWrapperState
     return new UsageState(pWrappedState, this);
   }
 
-  private UsageState createState(
+  protected UsageState createState(
       final AbstractState pWrappedState,
       final ImmutableMap<AbstractIdentifier, AbstractIdentifier> pVarBind,
       final StateStatistics pStats) {
@@ -311,7 +310,8 @@ public class UsageState extends AbstractSingleWrapperState
 
       if (variableBindingRelation.containsKey(entry.getKey())) {
         if (!variableBindingRelation.get(entry.getKey()).equals(entry.getValue())) {
-          throw new Error("Cannot handle it yet");
+          throw new UnsupportedOperationException(
+              "Joining states with the same variable binded to the different variables is not supported yet");
         }
       } else {
         newRelation.put(entry.getKey(), entry.getValue());
