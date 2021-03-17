@@ -166,6 +166,8 @@ public class UsageState extends AbstractSingleWrapperState
   }
 
   public UsageState reduced(final AbstractState pWrappedState, final String func) {
+    stats.reduceExpandTimer.start();
+
     UsageState result = copy(pWrappedState);
 
     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
@@ -179,10 +181,15 @@ public class UsageState extends AbstractSingleWrapperState
       }
     }
     result.variableBindingRelation = builder.build();
+
+    stats.reducedBindungs
+        .setNextValue(variableBindingRelation.size() - result.variableBindingRelation.size());
+    stats.reduceExpandTimer.stop();
     return result;
   }
 
    public UsageState expanded(final AbstractState pWrappedState, final UsageState state, final String func) {
+     stats.reduceExpandTimer.start();
 
      ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
      builder.putAll(state.variableBindingRelation);
@@ -195,6 +202,7 @@ public class UsageState extends AbstractSingleWrapperState
      }
      UsageState result = createState(pWrappedState, builder.build(), state.stats);
 
+     stats.reduceExpandTimer.stop();
      return result;
    }
 
@@ -267,10 +275,19 @@ public class UsageState extends AbstractSingleWrapperState
     private StatInt statCounter =
         new StatInt(StatKind.SUM, "Sum of variableBindingRelation's sizes");
 
+    private StatTimer reduceExpandTimer = new StatTimer("Time for reducing and expanding");
+    private StatInt reducedBindungs =
+        new StatInt(StatKind.AVG, "Average variableBindingRelation's sizes reducing");
+
     public StateStatistics() {}
 
     public void printStatistics(StatisticsWriter out) {
-      out.spacer().put(joinTimer).put(lessTimer).put(statCounter);
+      out.spacer()
+          .put(joinTimer)
+          .put(lessTimer)
+          .put(statCounter)
+          .put(reduceExpandTimer)
+          .put(reducedBindungs);
     }
   }
 
