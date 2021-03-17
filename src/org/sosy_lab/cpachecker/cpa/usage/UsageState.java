@@ -61,15 +61,6 @@ public class UsageState extends AbstractSingleWrapperState
         new StateStatistics());
   }
 
-  // Don't use constructors in order for UsageStateConservative to work properly.
-  // Use 'copy' method instead.
-  private UsageState(final AbstractState pWrappedElement, final UsageState state) {
-    this(
-        pWrappedElement,
-        state.variableBindingRelation,
-        state.stats);
-  }
-
   public UsageState removeInternalLinks(final String functionName) {
     boolean noRemove = true;
     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
@@ -89,50 +80,58 @@ public class UsageState extends AbstractSingleWrapperState
   }
 
   public UsageState put(Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks) {
-    boolean sameMap = true;
     ImmutableMap<AbstractIdentifier, AbstractIdentifier> newMap = variableBindingRelation;
 
     for (Pair<AbstractIdentifier, AbstractIdentifier> pair : newLinks) {
-      AbstractIdentifier id1 = pair.getFirst();
-      AbstractIdentifier id2 = getLinksIfNecessary(pair.getSecond());
-      if (!id1.equals(id2)) {
-        AbstractIdentifier newId1 = id1.cloneWithDereference(0);
-        AbstractIdentifier newId2 =
-            id2.cloneWithDereference(id2.getDereference() - id1.getDereference());
-        ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder =
-            ImmutableMap.builder();
-        boolean new_entry = true;
-
-        // If there was already an entry with same first AbstractIdentifier in
-        // variableBindingRelation,
-        // change it.
-        for (Entry<AbstractIdentifier, AbstractIdentifier> entry : newMap.entrySet()) {
-          AbstractIdentifier key = entry.getKey();
-          if (key.equals(newId1)) {
-            // Can not remove from builder, so have to go through a map manually
-            builder.put(newId1, newId2);
-            new_entry = false;
-            if (!newId2.equals(entry.getValue())) {
-              sameMap = false;
-            }
-          } else {
-            builder.put(entry);
-          }
-        }
-        // If this is an entry with new first AbstractIdentifier, add it.
-        if (new_entry) {
-          builder.put(newId1, newId2);
-          sameMap = false;
-        }
-        newMap = builder.build();
-      }
+      newMap = put(pair, newMap);
     }
 
-    if (sameMap) {
+    if (newMap == variableBindingRelation) {
       return this;
     } else {
       return createState(this.getWrappedState(), newMap, stats);
     }
+  }
+
+  private ImmutableMap<AbstractIdentifier, AbstractIdentifier> put(
+      Pair<AbstractIdentifier, AbstractIdentifier> pair,
+      ImmutableMap<AbstractIdentifier, AbstractIdentifier> newMap) {
+
+    AbstractIdentifier id1 = pair.getFirst();
+    AbstractIdentifier id2 = getLinksIfNecessary(pair.getSecond());
+    ImmutableMap<AbstractIdentifier, AbstractIdentifier> result = newMap;
+
+    if (!id1.equals(id2)) {
+      AbstractIdentifier newId1 = id1.cloneWithDereference(0);
+      AbstractIdentifier newId2 =
+          id2.cloneWithDereference(id2.getDereference() - id1.getDereference());
+      ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+      boolean new_entry = true;
+
+      // If there was already an entry with same first AbstractIdentifier in
+      // variableBindingRelation,
+      // change it.
+      for (Entry<AbstractIdentifier, AbstractIdentifier> entry : newMap.entrySet()) {
+        AbstractIdentifier key = entry.getKey();
+        if (key.equals(newId1)) {
+          if (entry.getValue().equals(newId2)) {
+            // Nothing changed
+            return result;
+          }
+          // Can not remove from builder, so have to go through a map manually
+          builder.put(newId1, newId2);
+          new_entry = false;
+        } else {
+          builder.put(entry);
+        }
+      }
+      // If this is an entry with new first AbstractIdentifier, add it.
+      if (new_entry) {
+        builder.put(newId1, newId2);
+      }
+      result = builder.build();
+    }
+    return result;
   }
 
   private AbstractIdentifier getLinksIfNecessary(final AbstractIdentifier id) {
@@ -155,7 +154,7 @@ public class UsageState extends AbstractSingleWrapperState
   }
 
   public UsageState copy(final AbstractState pWrappedState) {
-    return new UsageState(pWrappedState, this);
+    return new UsageState(pWrappedState, this.variableBindingRelation, this.stats);
   }
 
   protected UsageState createState(
@@ -171,6 +170,7 @@ public class UsageState extends AbstractSingleWrapperState
     UsageState result = copy(pWrappedState);
 
     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+    boolean newMap = false;
     for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
       AbstractIdentifier key = entry.getKey();
       if (key.isGlobal()) {
@@ -178,9 +178,13 @@ public class UsageState extends AbstractSingleWrapperState
       } else if (key instanceof LocalVariableIdentifier
           && ((LocalVariableIdentifier) key).getFunction().equals(func)) {
         builder.put(entry);
+      } else {
+        newMap = true;
       }
     }
-    result.variableBindingRelation = builder.build();
+    if (newMap) {
+      result.variableBindingRelation = builder.build();
+    }
 
     stats.reducedBindungs
         .setNextValue(variableBindingRelation.size() - result.variableBindingRelation.size());
@@ -188,22 +192,29 @@ public class UsageState extends AbstractSingleWrapperState
     return result;
   }
 
-   public UsageState expanded(final AbstractState pWrappedState, final UsageState state, final String func) {
-     stats.reduceExpandTimer.start();
+  public UsageState
+      expanded(final AbstractState pWrappedState, final UsageState state, final String func) {
+    stats.reduceExpandTimer.start();
 
-     ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
-     builder.putAll(state.variableBindingRelation);
-     for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
-       AbstractIdentifier key = entry.getKey();
-       if (key instanceof LocalVariableIdentifier
-           && !((LocalVariableIdentifier) key).getFunction().equals(func)) {
-         builder.put(entry);
-       }
-     }
-     UsageState result = createState(pWrappedState, builder.build(), state.stats);
+    UsageState result = copy(pWrappedState);
+    boolean newMap = false;
 
-     stats.reduceExpandTimer.stop();
-     return result;
+    ImmutableMap.Builder<AbstractIdentifier, AbstractIdentifier> builder = ImmutableMap.builder();
+    builder.putAll(state.variableBindingRelation);
+    for (Entry<AbstractIdentifier, AbstractIdentifier> entry : variableBindingRelation.entrySet()) {
+      AbstractIdentifier key = entry.getKey();
+      if (key instanceof LocalVariableIdentifier
+          && !((LocalVariableIdentifier) key).getFunction().equals(func)) {
+        builder.put(entry);
+        newMap = true;
+      }
+    }
+    if (newMap) {
+      result.variableBindingRelation = builder.build();
+    }
+
+    stats.reduceExpandTimer.stop();
+    return result;
    }
 
   @Override
@@ -224,11 +235,9 @@ public class UsageState extends AbstractSingleWrapperState
       return false;
     }
     UsageState other = (UsageState) obj;
-    boolean b =
+    return
         Objects.equals(variableBindingRelation, other.variableBindingRelation)
         && getWrappedState().equals(other.getWrappedState());
-
-    return b;
   }
 
   @Override

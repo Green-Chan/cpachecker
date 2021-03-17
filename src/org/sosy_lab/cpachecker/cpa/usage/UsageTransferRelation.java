@@ -30,7 +30,6 @@ import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.c.CAssignment;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
-import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCall;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallAssignmentStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallStatement;
@@ -256,73 +255,49 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
 
     switch (pCfaEdge.getEdgeType()) {
       case StatementEdge:
-        {
-          CStatementEdge statementEdge = (CStatementEdge) pCfaEdge;
-          newLinks.addAll(handleStatement(statementEdge.getStatement()));
-          break;
-        }
-
       case FunctionCallEdge:
         {
-          CFunctionCall statement = ((CFunctionCallEdge) pCfaEdge).getRawAST().get();
-
-          if (bindArgsFunctions) {
-
-            CFunctionCallExpression fcExpression;
-
-            if (statement instanceof CFunctionCallAssignmentStatement) {
-              // assignment like "a = b" or "a = foo()"
-              CAssignment assignment = (CAssignment) statement;
-              fcExpression = ((CFunctionCallAssignmentStatement) statement).getRightHandSide();
-
-            } else if (statement instanceof CFunctionCallStatement) {
-              fcExpression = ((CFunctionCallStatement) statement).getFunctionCallExpression();
-            } else {
-              break;
-            }
-
-            if (fcExpression.getDeclaration() == null) {
-              logger.log(Level.FINE, "No declaration.");
-            } else {
-              for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
-                if (i >= fcExpression.getParameterExpressions().size()) {
-                  logger.log(Level.FINE, "More parameters in declaration than in expression.");
-                  break;
-                }
-
-                CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
-                CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
-                if (exprFrom.getExpressionType() instanceof CPointerType) {
-                  AbstractIdentifier idIn, idFrom;
-                  idFrom = creator.createIdentifier(exprFrom, 0);
-                  creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
-                  idIn = creator.createIdentifier(exprIn, 0);
-                  newLinks.add(Pair.of(idIn, idFrom));
-                }
-              }
-              break;
-            }
-          }
-
-          newLinks.addAll(handleStatement(statement));
+        CStatement stmt;
+        if (pCfaEdge.getEdgeType() == CFAEdgeType.StatementEdge) {
+          CStatementEdge statementEdge = (CStatementEdge) pCfaEdge;
+          stmt = statementEdge.getStatement();
+        } else if (pCfaEdge.getEdgeType() == CFAEdgeType.FunctionCallEdge) {
+          stmt = ((CFunctionCallEdge) pCfaEdge).getRawAST().get();
+        } else {
+          // Not sure what is it
           break;
         }
 
-        case FunctionReturnEdge: {
-          // Data race detection in recursive calls does not work because of this optimisation
-          CFunctionReturnEdge returnEdge = (CFunctionReturnEdge) pCfaEdge;
-          String functionName =
-              returnEdge.getSummaryEdge()
-                  .getExpression()
-                  .getFunctionCallExpression()
-                  .getDeclaration()
-                  .getName();
-          for (AbstractState newWrappedState : newWrappedStates) {
-            UsageState newState = oldState.copy(newWrappedState);
-            result.add(newState.removeInternalLinks(functionName));
+        newLinks.addAll(handleStatement(stmt));
+
+        // Do not know why, but replacing the loop into lambda greatly decreases the speed
+        for (AbstractState newWrappedState : newWrappedStates) {
+          UsageState newState = oldState.copy(newWrappedState);
+
+          if (!newLinks.isEmpty()) {
+            newState = newState.put(newLinks);
           }
-          return ImmutableList.copyOf(result);
+
+          result.add(newState);
         }
+        break;
+      }
+
+      case FunctionReturnEdge: {
+        // Data race detection in recursive calls does not work because of this optimisation
+        CFunctionReturnEdge returnEdge = (CFunctionReturnEdge) pCfaEdge;
+        String functionName =
+            returnEdge.getSummaryEdge()
+                .getExpression()
+                .getFunctionCallExpression()
+                .getDeclaration()
+                .getName();
+        for (AbstractState newWrappedState : newWrappedStates) {
+          UsageState newState = oldState.copy(newWrappedState);
+          result.add(newState.removeInternalLinks(functionName));
+        }
+        break;
+      }
 
       case AssumeEdge:
       case DeclarationEdge:
@@ -335,16 +310,6 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
 
       default:
         throw new UnrecognizedCFAEdgeException(pCfaEdge);
-    }
-    // Do not know why, but replacing the loop into lambda greatly decreases the speed
-    for (AbstractState newWrappedState : newWrappedStates) {
-      UsageState newState = oldState.copy(newWrappedState);
-
-      if (!newLinks.isEmpty()) {
-        newState = newState.put(newLinks);
-      }
-
-      result.add(newState);
     }
     return ImmutableList.copyOf(result);
   }
@@ -385,6 +350,31 @@ public class UsageTransferRelation extends AbstractSingleWrapperTransferRelation
         // So, if we can't link (no left side), we skip it
 
         return bInfo.constructIdentifiers(left, params, creator);
+      }
+    }
+
+    if (bindArgsFunctions) {
+      if (fcExpression.getDeclaration() == null) {
+        logger.log(Level.FINE, "No declaration.");
+      } else {
+        Collection<Pair<AbstractIdentifier, AbstractIdentifier>> newLinks = new ArrayList<>();
+        for (int i = 0; i < fcExpression.getDeclaration().getParameters().size(); i++) {
+          if (i >= fcExpression.getParameterExpressions().size()) {
+            logger.log(Level.FINE, "More parameters in declaration than in expression.");
+            break;
+          }
+
+          CSimpleDeclaration exprIn = fcExpression.getDeclaration().getParameters().get(i);
+          CExpression exprFrom = fcExpression.getParameterExpressions().get(i);
+          if (exprFrom.getExpressionType() instanceof CPointerType) {
+            AbstractIdentifier idIn, idFrom;
+            idFrom = creator.createIdentifier(exprFrom, 0);
+            creator.setCurrentFunction(fcExpression.getFunctionNameExpression().toString());
+            idIn = creator.createIdentifier(exprIn, 0);
+            newLinks.add(Pair.of(idIn, idFrom));
+          }
+        }
+        return newLinks;
       }
     }
     return ImmutableSet.of();

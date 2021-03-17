@@ -33,16 +33,9 @@ public class UsageStateConservative extends UsageState
         new UsageState.StateStatistics());
   }
 
-  private UsageStateConservative(final AbstractState pWrappedElement, final UsageStateConservative state) {
-    this(
-        pWrappedElement,
-        state.variableBindingRelation,
-        state.stats);
-  }
-
   @Override
   public UsageStateConservative copy(final AbstractState pWrappedState) {
-    return new UsageStateConservative(pWrappedState, this);
+    return new UsageStateConservative(pWrappedState, this.variableBindingRelation, this.stats);
   }
 
   @Override
